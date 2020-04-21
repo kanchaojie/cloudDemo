@@ -1,0 +1,19 @@
+server:
+  port: 10086
+spring:
+  application:
+    name: eureka-server
+    #解决unknow的问题
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:10086/eureka
+      #配置默认的eureka,支持,号隔开注册多个
+    register-with-eureka: true
+    #设置不再注册自己
+  server:
+    eviction-interval-timer-in-ms: 60000
+    #默认60秒剔除一次，单位为毫秒，作用为剔除下线状态的服务，即为down状态的服务
+    enable-self-preservation: true
+    #默认为true，eureka有自我保护机制，当服务未按照心跳续约时，判断15分钟内心跳续约比例是否低于85%，生产环境由于
+    #网络延迟问题可能存在心跳比例过低，这时候如果上述配置默认为true就会开启保护，不会剔除down状态的服务

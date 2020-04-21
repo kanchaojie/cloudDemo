@@ -1,0 +1,44 @@
+
+server:
+  port: 8088
+spring:
+  #写应用名字
+  application:
+    name: consumer-service
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:10086/eureka
+      #将user-service注册进eureka
+    fetch-registry: true
+    #是否拉去服务实例的开关，默认为true
+    registry-fetch-interval-seconds: 30
+    #默认30，意味着拉去实例的周期为30秒
+  instance:
+    prefer-ip-address: true
+    ip-address: 127.0.0.1
+    #设置注册地址
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 5000
+            #配置全局属性超时时间为10秒
+    user-service:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 5000
+            #针对服务设置超时时间
+    getUser:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 5000
+            #针对方法设置超时时间
+user-service:
+  ribbon:
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RandomRule
+    #默认为轮询，设置user-service的负载均衡为随机（com.netflix.loadbalancer.RandomRule）

@@ -1,0 +1,23 @@
+server:
+  port: 10010
+#拉去服务列表
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:10086/eureka
+spring:
+  application:
+    name: gateway
+#zuul路由规则
+zuul:
+  routes:
+    user-service:
+      path: /user/**
+      serviceId: user-service
+      stripPrefix: false
+    #默认为true 去除前缀，改为false，不去除前缀，
+    #为true时匹配到访问http://localhost:10010/user/user/19匹配到/user/**去除/user，
+    #将http://localhost:10010/替换为 serviceId对应的eureka，最后为：http://localhost:8081/user/19
+    #当为false时不去除/user，若访问：访问访问http://localhost:10010/user/user/19将http://localhost:10010/替换为 serviceId对应的eureka，
+    #最后为：http://localhost:8081/user/user/19是错误的，此时直接访问http://localhost:10010/user/19即可
+

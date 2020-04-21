@@ -1,0 +1,27 @@
+
+server:
+  port: 8081
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/leyou?serverTimezone=UTC
+    username: root
+    password: 12345678
+  #写应用名字
+  application:
+    name: user-service
+mybatis:
+  type-aliases-package: com.kcj.user.pojo
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:10086/eureka
+      #将user-service注册进eureka
+  instance:
+    prefer-ip-address: true
+    ip-address: 127.0.0.1
+      #配死当前实例的ip
+    lease-renewal-interval-in-seconds: 30
+    #默认30，设置30秒心跳一次，即注册一次，最小续约周期
+    lease-expiration-duration-in-seconds: 90
+    #默认90，每隔30秒注册一次，如果90秒还没成功则不再注册，该服务则会由正常的在线状态转变为下线状态（up->down）
