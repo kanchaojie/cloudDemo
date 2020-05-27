@@ -11,6 +11,7 @@ import java.util.Date;
 @Data
 @Table(name = "tb_user")//表示表名
 public class User {
+
     @Id//表示主键
     @KeySql(useGeneratedKeys = true)//表示主键自增
     private Long id;//id
