@@ -21,4 +21,21 @@ public class User {
     private Date created;//创建时间
     @Transient//表示当前字段不是持久化的，是瞬时在数据库中不存在这个字段
     private String note;//备注
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                ", password='" + password + '\'' +
+                ", phone='" + phone + '\'' +
+                ", created=" + created +
+                ", note='" + note + '\'' +
+                '}';
+    }
+
+    public void print(){
+        System.out.println("java\t");
+    }
+
 }
