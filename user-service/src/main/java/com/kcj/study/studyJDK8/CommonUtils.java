@@ -1,4 +1,4 @@
-package com.kcj.studyJDK8;
+package com.kcj.study.studyJDK8;
 
 import java.util.*;
 import java.util.stream.Collectors;

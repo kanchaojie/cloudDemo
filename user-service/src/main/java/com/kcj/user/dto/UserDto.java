@@ -1,27 +1,18 @@
-package com.kcj.studyJDK8;
+package com.kcj.user.dto;
 
 import lombok.Data;
 
 import java.util.Date;
 
 @Data
-public class User {
+public class UserDto {
 
-
-    private Long id;//id
     private String username;//用户名
     private String password;//密码
     private String phone;//手机号
     private Date created;//创建时间
     private String note;//备注
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     public String getUsername() {
         return username;

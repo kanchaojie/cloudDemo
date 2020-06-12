@@ -1,4 +1,4 @@
-package com.kcj.studyJDK8;
+package com.kcj.study.studyJDK8;
 
 /**
  * Lambda表达式常用

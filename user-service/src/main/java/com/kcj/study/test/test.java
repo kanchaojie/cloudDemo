@@ -1,9 +1,10 @@
-package com.kcj.test;
+package com.kcj.study.test;
 
 import com.kcj.user.pojo.User;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 
 /**
  * 利用反射查看修饰符、类型、名字
@@ -16,6 +17,8 @@ public class test {
         for (Field f:fields) {
             //输出修饰符
             System.out.println(Modifier.toString(f.getModifiers())+"\t");
+            final Type genericType = f.getGenericType();
+
 
             //输出属性的类型
             System.out.println(f.getGenericType().toString()+"\t");

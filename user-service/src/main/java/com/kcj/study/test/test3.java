@@ -1,4 +1,4 @@
-package com.kcj.test;
+package com.kcj.study.test;
 
 import com.kcj.user.pojo.User;
 

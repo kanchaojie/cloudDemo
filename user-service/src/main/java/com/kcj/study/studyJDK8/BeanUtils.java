@@ -1,4 +1,4 @@
-package com.kcj.studyJDK8;
+package com.kcj.study.studyJDK8;
 
 import ma.glasnost.orika.MapperFacade;
 import ma.glasnost.orika.impl.DefaultMapperFactory;
