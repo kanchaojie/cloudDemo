@@ -1,10 +1,13 @@
 package com.kcj.user.service;
 
 import com.kcj.study.studyJDK8.BeanUtils;
+import com.kcj.user.dto.CellVerifyDto;
 import com.kcj.user.dto.UserDto;
 import com.kcj.user.mapper.UserMapper;
 import com.kcj.user.pojo.User;
+import com.kcj.user.reponseUtil.BaseResponse;
 import com.kcj.utils.CommonUtils;
+import com.kcj.utils.DateUtil;
 import com.kcj.utils.ExcelUtil;
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.util.CellRangeAddressList;
@@ -13,6 +16,8 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import tk.mybatis.mapper.util.StringUtil;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -23,7 +28,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -106,7 +114,7 @@ public class UserService {
         // 写标题
         for (int i = 0; i < titleArr.length; i++) {
             cell = rowFirst.createCell(i); // 获取第一行的每个单元格
-            if (i == excelColMap.get("username")) {//用户名置为红色
+            if (i == excelColMap.get("username")||i == excelColMap.get("created")) {//用户名置为红色
                 style = createTitleFont(wb, HSSFColor.RED.index);
             } else {
                 style = createTitleFont(wb, HSSFColor.BLACK.index);
@@ -270,5 +278,274 @@ public class UserService {
         } catch (Exception ex) {
             return filename;
         }
+    }
+
+    public BaseResponse<Object> verifyExcel(MultipartFile excelFile, HttpServletRequest request,
+                                            HttpServletResponse response) {
+        Map<String,String> errorResult = new HashMap<>();
+        if (excelFile == null || excelFile.getSize() == 0 || StringUtil.isEmpty((excelFile.getOriginalFilename()))) {
+            return BaseResponse.fail(1,"请上传文件!");
+        }
+        final int headRow = 2;//列头所在行
+        Workbook workbook;
+        try {
+            workbook = WorkbookFactory.create(excelFile.getInputStream());
+            // 1.获取数据
+            Sheet poiSheet = workbook.getSheetAt(0);
+            int lastRowNum = poiSheet.getLastRowNum();
+            if (lastRowNum <= 0) {
+                return BaseResponse.fail(1,"excel内容不能为空!");
+            }
+            // 2.列头校验
+            Row row = poiSheet.getRow(headRow);
+            Boolean isError = headCheck(row);
+            if (isError) {
+                return BaseResponse.fail(1,"模板表头错误!");
+            }
+            // 3.数据校验
+            CellVerifyDto dto = cellVerify(poiSheet, request, response);
+            if (dto.getError()) {
+                List<List<Map<String,Object>>> rowList = dto.getRowList();
+                int errCount = 0;//数据异常条数
+                for (List<Map<String, Object>> mapList : rowList) {
+                    Map<String, Object> errMap = mapList.get(mapList.size()-1);
+                    if(errMap.get("value") != null) {
+                        errCount++;
+                    }
+                }
+                return BaseResponse.fail(2,"数据校验失败!异常数据" + errCount + "条!");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return BaseResponse.fail(1,"导入模板异常!");
+        }
+        return BaseResponse.successWithData(true);
+    }
+    /**
+     * 单元格内容检验
+     *
+     * @param l
+     * @return
+     */
+    private CellVerifyDto cellVerify(Sheet poiSheet, HttpServletRequest request,
+                                     HttpServletResponse response) {
+
+        //获取所有用户
+        List<User> userList = userMapper.selectAll();
+        //利用jdk8中的Lambda表达式取出所有的username
+        List<String> usernameList = userList.stream().map(User::getUsername).collect(Collectors.toList());
+        CellVerifyDto dto = new CellVerifyDto();
+        List<List<Map<String, Object>>> rowList = new ArrayList<>();
+        boolean isError = false;
+        Row row = null;
+        for (int i = 3; i <= poiSheet.getLastRowNum(); i++) {
+            row = poiSheet.getRow(i);
+            if (row == null) {
+                continue;
+            }
+            if(this.checkBank(row)) {
+                continue;
+            }
+            List<Map<String, Object>> mapList = new ArrayList<>();
+            Map<String, Object> map = new HashMap<>();
+            // 1.用户名校验
+            Map<String, Object> usernameMap = new HashMap<>();
+            Cell cell  = row.getCell(excelColMap.get("username"));
+            String username = ValueOfJudgmentType(cell);
+            if (cell != null && StringUtil.isNotEmpty(username)) {
+                cell.setCellType(Cell.CELL_TYPE_STRING);
+                usernameMap.put("value", username);
+                // 2.1判断房屋是否存在
+                if (usernameList.contains(username)) {
+                    usernameMap.put("isRed", true);
+                    map.put("value", map.get("value") != null ? map.get("value") + ",该用户名已存在" : "该用户名已存在");
+                    isError = true;
+                } else {
+                    usernameMap.put("isRed", false);
+                }
+            } else {
+                usernameMap.put("value", "必填");
+                usernameMap.put("isRed", true);
+                isError = true;
+                map.put("value", map.get("value") != null ? map.get("value") + ",用户名不能为空" : "用户名不能为空");
+            }
+            mapList.add(usernameMap);
+            // 2.密码校验，密码和手机号一个存在另一个必定存在
+            Map<String, Object> passwordMap = new HashMap<>();
+            cell = row.getCell(excelColMap.get("password"));
+            String password = ValueOfJudgmentType(cell);
+            if (cell != null && StringUtil.isNotEmpty(password)) {
+                cell.setCellType(Cell.CELL_TYPE_STRING);
+                passwordMap.put("value", password);
+                passwordMap.put("isRed", false);
+
+                if (row.getCell(excelColMap.get("phone")) == null || !StringUtil.isNotEmpty(ValueOfJudgmentType(row.getCell(excelColMap.get("phone"))))) {
+                    passwordMap.put("isRed", false);
+                    map.put("value", map.get("value") != null ? map.get("value") + ",若需要填写密码，则密码、手机号需同时填写"
+                            : "若需要填写密码，则密码、手机号需同时填写");
+                    isError = true;
+                }
+            } else {
+                passwordMap.put("value", ValueOfJudgmentType(cell));
+                passwordMap.put("isRed", false);
+            }
+            mapList.add(passwordMap);
+            // 3.手机号校验
+            Map<String, Object> phoneMap = new HashMap<>();
+            cell = row.getCell(excelColMap.get("phone"));
+            String phone = ValueOfJudgmentType(cell);
+            if (cell != null && StringUtil.isNotEmpty(phone)) {
+                cell.setCellType(Cell.CELL_TYPE_STRING);
+
+                if (phone.length()==11) {
+                    phoneMap.put("isRed", false);
+                    phoneMap.put("value", phone);
+                } else {
+                    phoneMap.put("isRed", true);
+                    phoneMap.put("value", phone);
+                    map.put("value",
+                            map.get("value") != null ? map.get("value") + ",手机号必须为11位" : "手机号必须为11位");
+                    isError=true;
+                }
+            } else {
+                if (StringUtil.isNotEmpty(password)) {
+                    phoneMap.put("value", phone);
+                    phoneMap.put("isRed", true);
+                    isError = true;
+                    map.put("value", map.get("value") != null ? map.get("value") + ",若需要填写密码，手机号必须同时填写"
+                            : "若需要填写密码，手机号必须同时填写");
+                } else {
+                    phoneMap.put("value", phone);
+                    phoneMap.put("isRed", false);
+                }
+            }
+            mapList.add(phoneMap);
+            // 11.创建日期校验
+            Map<String, Object> createdMap = new HashMap<>();
+            cell = row.getCell(excelColMap.get("created"));
+            if (cell != null) {
+                int cellType = cell.getCellType();
+                switch (cellType) {
+                    case Cell.CELL_TYPE_STRING:
+                        String cellValue = cell.getStringCellValue();
+                        if (DateUtil.isDate(cellValue)) {
+                            createdMap.put("value", cellValue);
+                            createdMap.put("isRed", false);
+                        } else {
+                            createdMap.put("value", cellValue);
+                            createdMap.put("isRed", true);
+                            map.put("value", map.get("value") != null ? map.get("value") + ",迁入日期格式不正确" : "迁入日期格式不正确");
+                            isError = true;
+                        }
+                        break;
+                    case Cell.CELL_TYPE_BLANK:
+                        createdMap.put("value", "必填");
+                        createdMap.put("isRed", true);
+                        isError = true;
+                        map.put("value", map.get("value") != null ? map.get("value") + ",迁入日期不能为空" : "迁入日期不能为空");
+                        break;
+                    case Cell.CELL_TYPE_NUMERIC:
+                        if (HSSFDateUtil.isCellDateFormatted(cell)) {
+                            Date d = cell.getDateCellValue();
+                            DateFormat formater = new SimpleDateFormat("yyyy-MM-dd");
+                            createdMap.put("value", formater.format(d));
+                            createdMap.put("isRed", false);
+                        }
+                        break;
+                }
+            } else {
+                createdMap.put("value", "必填");
+                createdMap.put("isRed", true);
+                isError = true;
+                map.put("value", map.get("value") != null ? map.get("value") + ",迁入日期不能为空" : "迁入日期不能为空");
+            }
+            mapList.add(createdMap);
+            //性别
+            Map<String, Object> noteMap = new HashMap<>();
+            cell = row.getCell(excelColMap.get("note"));
+            String note = ValueOfJudgmentType(cell);
+            if (cell != null && StringUtil.isNotEmpty(note)) {
+                cell.setCellType(Cell.CELL_TYPE_STRING);
+                noteMap.put("value", note);
+                if(!note.equals("男") && !note.equals("女")) {
+                    noteMap.put("isRed", true);
+                    isError = true;
+                    map.put("value", map.get("value") != null ? map.get("value") + ",性别在系统不存在" : "性别在系统不存在");
+                }else {
+                    noteMap.put("isRed", false);
+                }
+            } else {
+                noteMap.put("value", note);
+                noteMap.put("isRed", false);
+            }
+            mapList.add(noteMap);
+            // 12.将错误信息加入
+            map.put("isRed", false);
+            mapList.add(map);
+            rowList.add(mapList);
+        }
+        dto.setError(isError);
+        dto.setRowList(rowList);
+        return dto;
+    }
+    private boolean checkBank(Row row) {
+        for(int i = 0; i<23; i++) {
+            if(!StringUtil.isEmpty(ValueOfJudgmentType(row.getCell(i)))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 校验列头
+     *
+     * @param row
+     * @return
+     */
+    private Boolean headCheck(Row row) {
+        // 是否有错误
+        for (int i = 0; i < titleArr.length; i++) {
+            if (!titleArr[i].equals(ValueOfJudgmentType(row.getCell(i)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断单元格数据类型
+     */
+    private String ValueOfJudgmentType(Cell cell) {
+        if(null == cell) {
+            return null;
+        }
+        int cellType = cell.getCellType();
+        String value = null;
+        try {
+            switch (cellType) {
+                case Cell.CELL_TYPE_NUMERIC:
+                    value = String.valueOf(cell.getNumericCellValue());
+                    break;
+                case Cell.CELL_TYPE_FORMULA:
+                    value = String.valueOf(cell.getCellFormula());
+                    break;
+                case Cell.CELL_TYPE_BLANK:
+                    value = null;
+                    break;
+                case Cell.CELL_TYPE_BOOLEAN:
+                    value = String.valueOf(cell.getBooleanCellValue());
+                    break;
+                case Cell.CELL_TYPE_ERROR:
+                    value = String.valueOf(cell.getErrorCellValue());
+                    break;
+                default:
+                    value = cell.getStringCellValue();
+                    break;
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return StringUtil.isEmpty(value)?"":value.trim();
     }
 }
