@@ -18,7 +18,6 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.IdGenerator;
 import org.springframework.web.multipart.MultipartFile;
 import tk.mybatis.mapper.util.StringUtil;
 
@@ -49,8 +48,6 @@ public class UserService {
     @Autowired
     private UserMapper userMapper;
 
-    @Autowired
-    private IdGenerator idGenerator;
 
     public User queryById(Long id){
         return userMapper.selectByPrimaryKey(id);
@@ -341,6 +338,8 @@ public class UserService {
         List<User> userList = userMapper.selectAll();
         //利用jdk8中的Lambda表达式取出所有的username
         List<String> usernameList = userList.stream().map(User::getUsername).collect(Collectors.toList());
+
+        List<String> userExcelNameList = new ArrayList<>();
         CellVerifyDto dto = new CellVerifyDto();
         List<List<Map<String, Object>>> rowList = new ArrayList<>();
         boolean isError = false;
@@ -366,8 +365,13 @@ public class UserService {
                     usernameMap.put("isRed", true);
                     map.put("value", map.get("value") != null ? map.get("value") + ",该用户名已存在" : "该用户名已存在");
                     isError = true;
-                } else {
+                } else if (userExcelNameList.contains(username)) {//如果当前表格已存在这个用户
+                    usernameMap.put("isRed", true);
+                    map.put("value", map.get("value") != null ? map.get("value") + ",表格中该用户名已存在" : "表格中该用户名已存在");
+                    isError = true;
+                }else {
                     usernameMap.put("isRed", false);
+                    userExcelNameList.add(username);
                 }
             } else {
                 usernameMap.put("value", "必填");
@@ -585,14 +589,15 @@ public class UserService {
                     if(errMap.get("value") == null) {
                         //新建用户
                         User user = new User();
-                        UUID uuid = idGenerator.generateId();
-                        user.setId(uuid.timestamp());
+                        user.setId(System.currentTimeMillis());
+
                         String username = CommonUtils.getString(mapList.get(excelColMap.get("username")).get("value"));
                         user.setUsername(username);
                         String date = CommonUtils.getString(mapList.get(excelColMap.get("created")).get("value"));
                         DateFormat formater = new SimpleDateFormat("yyyy-MM-dd");
                         user.setCreated(formater.parse(date));
                         user.setNote(CommonUtils.getString(mapList.get(excelColMap.get("note")).get("value")));
+                        user.setPassword(CommonUtils.getString(mapList.get(excelColMap.get("password")).get("value")));
                         user.setPhone(CommonUtils.getString(mapList.get(excelColMap.get("phone")).get("value")));
                         userAddList.add(user);
                     }else {
