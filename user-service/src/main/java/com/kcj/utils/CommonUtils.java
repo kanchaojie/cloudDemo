@@ -10,4 +10,11 @@ public class CommonUtils {
         String str=sdf.format(d);
         return str;
     }
+
+    public static String getString(Object object){
+        if(object == null){
+            return "";
+        }
+        return String.valueOf(object);
+    }
 }

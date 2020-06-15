@@ -9,6 +9,8 @@ import com.kcj.user.reponseUtil.BaseResponse;
 import com.kcj.utils.CommonUtils;
 import com.kcj.utils.DateUtil;
 import com.kcj.utils.ExcelUtil;
+import com.kcj.utils.ListUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.util.CellRangeAddressList;
 import org.apache.poi.hssf.util.HSSFColor;
@@ -16,6 +18,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.IdGenerator;
 import org.springframework.web.multipart.MultipartFile;
 import tk.mybatis.mapper.util.StringUtil;
 
@@ -33,6 +36,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class UserService {
 
@@ -44,6 +48,9 @@ public class UserService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private IdGenerator idGenerator;
 
     public User queryById(Long id){
         return userMapper.selectByPrimaryKey(id);
@@ -324,7 +331,7 @@ public class UserService {
     /**
      * 单元格内容检验
      *
-     * @param l
+     * @param
      * @return
      */
     private CellVerifyDto cellVerify(Sheet poiSheet, HttpServletRequest request,
@@ -355,7 +362,6 @@ public class UserService {
             if (cell != null && StringUtil.isNotEmpty(username)) {
                 cell.setCellType(Cell.CELL_TYPE_STRING);
                 usernameMap.put("value", username);
-                // 2.1判断房屋是否存在
                 if (usernameList.contains(username)) {
                     usernameMap.put("isRed", true);
                     map.put("value", map.get("value") != null ? map.get("value") + ",该用户名已存在" : "该用户名已存在");
@@ -547,5 +553,67 @@ public class UserService {
             ex.printStackTrace();
         }
         return StringUtil.isEmpty(value)?"":value.trim();
+    }
+
+
+    @Transactional
+    public BaseResponse<Object> importExcel(MultipartFile excelFile, HttpServletRequest request, HttpServletResponse response) {
+        Workbook workbook;
+        Integer count = 0;
+        int saveCount = 0;//插入数量
+        int updateCount = 0;//更新数量
+        int repeatCount = 0;
+        try {
+            workbook = WorkbookFactory.create(excelFile.getInputStream());
+            Sheet poiSheet = workbook.getSheetAt(0);
+            CellVerifyDto dto = cellVerify(poiSheet, request, response);
+            List<User> userAddList = new ArrayList<>();
+            List<List<Map<String, Object>>> rowList = dto.getRowList();
+            count = rowList.size();
+            if (count == 0) {
+                return BaseResponse.successWithData(count);
+            }
+            // 切片，防止数据过大,引起sql过长
+            int n = Double.valueOf(Math.ceil(rowList.size() / 200f)).intValue();
+            List<List<List<Map<String, Object>>>> split = ListUtil.split(rowList, n);
+
+            List<List<Map<String,Object>>> errDataList = new ArrayList<>();
+            for (List<List<Map<String, Object>>> lists : split) {
+                for (List<Map<String, Object>> mapList : lists) {
+                    Map<String, Object> errMap = mapList.get(mapList.size()-1);
+                    //只插入不存在错误的数据
+                    if(errMap.get("value") == null) {
+                        //新建用户
+                        User user = new User();
+                        UUID uuid = idGenerator.generateId();
+                        user.setId(uuid.timestamp());
+                        String username = CommonUtils.getString(mapList.get(excelColMap.get("username")).get("value"));
+                        user.setUsername(username);
+                        String date = CommonUtils.getString(mapList.get(excelColMap.get("created")).get("value"));
+                        DateFormat formater = new SimpleDateFormat("yyyy-MM-dd");
+                        user.setCreated(formater.parse(date));
+                        user.setNote(CommonUtils.getString(mapList.get(excelColMap.get("note")).get("value")));
+                        user.setPhone(CommonUtils.getString(mapList.get(excelColMap.get("phone")).get("value")));
+                        userAddList.add(user);
+                    }else {
+                        errDataList.add(mapList);
+                    }
+                }
+            }
+            for (User u:userAddList) {
+                int insert = userMapper.insert(u);
+                saveCount += insert;
+            }
+
+            /*Map<String, String> errorExcel = null;
+            if(errDataList.size() > 0) {
+                errorExcel = uploadErrorExcel(errDataList, request, response, true);
+            }*/
+        } catch (Exception e) {
+            e.printStackTrace();
+            log.info("导入异常:" + e.getMessage());
+            return BaseResponse.fail("1", e.getMessage());
+        }
+        return BaseResponse.successWithData(saveCount+updateCount);
     }
 }
