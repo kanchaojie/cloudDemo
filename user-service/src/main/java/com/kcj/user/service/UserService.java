@@ -1,5 +1,6 @@
 package com.kcj.user.service;
 
+import com.kcj.primaryKeyGeneration.IdWorker;
 import com.kcj.study.studyJDK8.BeanUtils;
 import com.kcj.user.dto.CellVerifyDto;
 import com.kcj.user.dto.UserDto;
@@ -47,6 +48,10 @@ public class UserService {
 
     @Autowired
     private UserMapper userMapper;
+
+
+    @Autowired
+    private IdWorker idWorker;
 
 
     public User queryById(Long id){
@@ -589,7 +594,7 @@ public class UserService {
                     if(errMap.get("value") == null) {
                         //新建用户
                         User user = new User();
-                        user.setId(System.currentTimeMillis());
+                        user.setId(idWorker.nextId());
 
                         String username = CommonUtils.getString(mapList.get(excelColMap.get("username")).get("value"));
                         user.setUsername(username);
