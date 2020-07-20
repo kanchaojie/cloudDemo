@@ -1,9 +1,11 @@
 package com.kcj.user.service;
 
+import com.kcj.constant.LocationConstant;
 import com.kcj.primaryKeyGeneration.IdWorker;
 import com.kcj.study.studyJDK8.BeanUtils;
 import com.kcj.user.dto.CellVerifyDto;
 import com.kcj.user.dto.UserDto;
+import com.kcj.user.dto.UserExportDto;
 import com.kcj.user.mapper.UserMapper;
 import com.kcj.user.pojo.User;
 import com.kcj.user.reponseUtil.BaseResponse;
@@ -625,5 +627,28 @@ public class UserService {
             return BaseResponse.fail("1", e.getMessage());
         }
         return BaseResponse.successWithData(saveCount+updateCount);
+    }
+
+    public void export(User query, HttpServletRequest request, HttpServletResponse response) {
+        List<User> list = userMapper.select(query);
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+        //4.封装导出对象参数dto
+        List dtoList = new ArrayList();
+        for (User user:list) {
+            UserExportDto userExportDto = new UserExportDto();
+            userExportDto.setId(user.getId());
+            userExportDto.setUsername(user.getUsername());
+            userExportDto.setPassword(user.getPassword());
+            userExportDto.setPhone(user.getPhone());
+            userExportDto.setCreated(formatter.format(user.getCreated()));
+            userExportDto.setNote(user.getNote());
+            dtoList.add(userExportDto);
+        }
+        String[] headers = LocationConstant.EXPORT_LOCATION;
+        try {
+            ExcelUtil.writeExcel(headers, dtoList, request, response);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

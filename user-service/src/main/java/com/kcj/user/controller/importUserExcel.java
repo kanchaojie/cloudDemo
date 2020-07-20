@@ -81,4 +81,14 @@ public class importUserExcel {
         }
         return BaseResponse.successWithData(result.getData());
     }
+
+    @PostMapping(value = "/export")
+    public void exportReportsMeters(@RequestBody User query, HttpServletRequest request,
+                                    HttpServletResponse response) {
+        try {
+            userService.export(query, request,response);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
